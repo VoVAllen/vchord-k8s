@@ -1,0 +1,115 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgresql-storage-class
+spec:
+  instances: 1
+  imageName: modelzai/vchord-cnpg:16-v0.2.0
+  storage:
+    storageClass: fast-disks
+    size: 800Gi
+  backup:
+    barmanObjectStore:
+      data:
+        additionalCommandArgs:
+        - --min-chunk-size=5MB
+        - --read-timeout=60
+        - --aws-region=us-west-2
+        compression: gzip
+        encryption: AES256
+        jobs: 4
+      destinationPath: s3://pgvecto.rs-cloud-cnpg-backup-us-east-1-dev/pgrs-5814790a-edd1-4be8-8422-7ff8e58bb2ca/cae604a8-374e-4bd7-9264-2200b9c2b877
+      s3Credentials:
+        inheritFromIAMRole: true
+      tags:
+        backupCompression: gzip
+        backupEncryption: AES256
+        backupRetentionPolicy: expire-7d
+        walCompression: gzip
+        walEncryption: AES256
+      wal:
+        compression: gzip
+        encryption: AES256
+        maxParallel: 4
+    retentionPolicy: 7d
+    target: prefer-standby
+  bootstrap:
+    initdb:
+      dataChecksums: true
+      database: test
+      encoding: UTF8
+      localeCType: C
+      localeCollate: C
+      owner: test_user
+      postInitApplicationSQL:
+      - ALTER ROLE test_user superuser;
+      - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
+      - CREATE EXTENSION IF NOT EXISTS pg_later CASCADE;
+      secret:
+        name: test-app
+  postgresql:
+    enableAlterSystem: true
+    parameters:
+      archive_mode: "on"
+      archive_timeout: 5min
+      checkpoint_completion_target: "0.9"
+      checkpoint_timeout: 30min
+      default_statistics_target: "100"
+      dynamic_shared_memory_type: posix
+      effective_cache_size: 24GB
+      effective_io_concurrency: "200"
+      full_page_writes: "on"
+      huge_pages: try
+      log_destination: csvlog
+      log_directory: /controller/log
+      log_filename: postgres
+      log_rotation_age: "0"
+      log_rotation_size: "0"
+      log_truncate_on_rotation: "false"
+      logging_collector: "on"
+      maintenance_work_mem: 2GB
+      max_parallel_maintenance_workers: "2"
+      max_parallel_workers: "4"
+      max_parallel_workers_per_gather: "2"
+      max_replication_slots: "32"
+      max_wal_size: 8GB
+      max_worker_processes: "4"
+      min_wal_size: 2GB
+      pgaudit.log: all, -misc, -function, -read
+      pgaudit.log_catalog: "off"
+      pgaudit.log_parameter: "on"
+      pgaudit.log_relation: "on"
+      random_page_cost: "1.1"
+      shared_buffers: 8GB
+      shared_memory_type: mmap
+      shared_preload_libraries: ""
+      ssl_max_protocol_version: TLSv1.3
+      ssl_min_protocol_version: TLSv1.3
+      wal_buffers: 16MB
+      wal_keep_size: 512MB
+      wal_level: logical
+      wal_log_hints: "on"
+      wal_receiver_timeout: 5s
+      wal_sender_timeout: 5s
+      work_mem: 41943kB
+    pg_hba:
+    - hostssl app all all cert
+    - local   all             all                                     trust
+    - host    all             all             127.0.0.1/32            trust
+    - host    all             all             ::1/128                 trust
+    shared_preload_libraries:
+    - vchord.so
+    - pg_later.so
+    syncReplicaElectionConstraint:
+      enabled: false
+  affinity:
+    nodeSelector:
+      node.kubernetes.io/instance-type: i8g.xlarge
+  additionalPodAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+        - key: postgresql
+          operator: Exists
+          values: []
+      topologyKey: "kubernetes.io/hostname"

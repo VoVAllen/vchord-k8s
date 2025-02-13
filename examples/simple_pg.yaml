@@ -1,0 +1,20 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgresql-storage-class
+spec:
+  instances: 1
+  storage:
+    storageClass: fast-disks
+    size: 800Gi
+  affinity:
+    nodeSelector:
+      node.kubernetes.io/instance-type: i8g.xlarge
+  additionalPodAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+        - key: postgresql
+          operator: Exists
+          values: []
+      topologyKey: "kubernetes.io/hostname"
