@@ -2,16 +2,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: inflate-ssd
+  name: inflate-gp3
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: inflate-ssd
+      app: inflate-gp3
   template:
     metadata:
       labels:
-        app:  inflate-ssd
+        app:  inflate-gp3
     spec:
       # nodeSelector:
       #   node.kubernetes.io/instance-type: i8g.xlarge
@@ -23,9 +23,9 @@ spec:
         args: ["echo 'hello world' > /cache/test.txt && sleep 1 && cat /cache/test.txt && sleep 3600"]
         volumeMounts:
         - mountPath: /cache
-          name: local-ssd-storage
+          name: gp3-storage
       volumes:
-      - name: local-ssd-storage
+      - name: gp3-storage
         persistentVolumeClaim:
           claimName: example-local-claim
 ---

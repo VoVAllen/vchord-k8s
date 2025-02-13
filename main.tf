@@ -21,6 +21,19 @@ provider "helm" {
   }
 }
 
+
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    # This requires the awscli to be installed locally where Terraform is executed
+    args = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+  }
+}
+
 data "aws_availability_zones" "available" {
   # Exclude local zones
   filter {
@@ -48,6 +61,15 @@ locals {
 }
 
 ################################################################################
+# EBS CSI controller
+################################################################################
+module "aws_ebs_csi_pod_identity" {
+  source = "terraform-aws-modules/eks-pod-identity/aws"
+  name = "aws-ebs-csi-pod-identity"
+  attach_aws_ebs_csi_policy = true
+}
+
+################################################################################
 # EKS Module
 ################################################################################
 
@@ -68,8 +90,16 @@ module "eks" {
     eks-pod-identity-agent = {}
     kube-proxy             = {}
     vpc-cni                = {}
-    aws-ebs-csi-driver     = {}
-    snapshot-controller    = {}
+    aws-ebs-csi-driver     = {
+      most_recent = true
+      pod_identity_association = [
+          {
+            role_arn = module.aws_ebs_csi_pod_identity.iam_role_arn
+            service_account = "ebs-csi-controller-sa"
+          }
+        ]
+    }
+    # snapshot-controller    = {}
   }
 
   vpc_id                   = module.vpc.vpc_id
@@ -188,6 +218,7 @@ module "vpc" {
 }
 
 
+
 ################################################################################
 # Load balancer controller
 ################################################################################
@@ -268,6 +299,16 @@ module "s3_backup_role" {
     ex = {
       provider_arn               = module.eks.oidc_provider_arn
       namespace_service_accounts = ["default:s3-backup-role"]
+    }
+  }
+}
+
+resource "kubernetes_service_account" "s3_service_account" {
+  metadata {
+    name      = "s3-backup-role"
+    namespace = "default"
+    annotations = {
+      "eks.amazonaws.com/role-arn" = module.s3_backup_role.iam_role_arn
     }
   }
 }

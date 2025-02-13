@@ -8,12 +8,16 @@
 ```bash
 # Setup AWS credential
 # Install tofu
+tofu init
 
 # Show the resource planned
 tofu plan
 
 # Spin up the cluster
 tofu apply --auto-approve
+
+# Make sure you have updated your local kubeconfig
+aws eks --region us-west-2 update-kubeconfig --name test-vchord
 
 # Setup Karpernter with node requirements
 kubectl apply -f karpenter.yaml
